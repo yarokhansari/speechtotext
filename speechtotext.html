@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speech to Text</title>
+<!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+<!-- Font Awesome -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+<style>
+    #container {
+        text-align: center;
+        margin-top: 100px;
+    }
+
+    #output {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        min-height: 50px;
+        background-color: #f9f9f9;
+        display: inline-block;
+        vertical-align: top;
+        word-wrap: break-word;
+    }
+
+    #output::before {
+        content: 'Recognized Text: ';
+        font-weight: bold;
+    }
+
+    #textInput {
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 16px;
+    }
+
+    #startButton {
+        margin-top: 20px;
+    }
+</style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <button id="startButton" class="btn btn-primary"><i class="fas fa-microphone"></i> Start Recording</button>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div id="output" contenteditable="true"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <textarea row="50" type="text" id="textInput" class="form-control" placeholder="Recognized Text" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Font Awesome Script -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+    
+    <script>
+        const output = document.getElementById('output');
+        const textInput = document.getElementById('textInput');
+        const startButton = document.getElementById('startButton');
+        let recognition;
+        let noiseThreshold = 0.1; // Adjust this threshold as needed
+        let silenceTimeout = 5000; // Adjust this timeout as needed
+        let wordCount = 0;
+        let timeoutID;
+
+        // Check if Speech Recognition API is supported
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            // Create an instance of SpeechRecognition
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+
+            // Set properties for recognition
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+
+            // Define event listener for start button click
+            startButton.addEventListener('click', () => {
+                startButton.disabled = true;
+                startButton.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Recording...';
+                wordCount = 0;
+                clearTimeout(timeoutID);
+
+                // Start recognition
+                recognition.start();
+            });
+
+            // Define event listener for recognition result
+            recognition.onresult = (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                output.textContent = transcript;
+                textInput.value = transcript;
+                wordCount += transcript.split(' ').length;
+
+                // if (wordCount >= 6 || transcript.trim() === '') {
+                //     recognition.stop();
+                // }
+            };
+
+            // Define event listener for recognition error
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+            };
+
+            // Define event listener for recognition end
+            recognition.onend = () => {
+                startButton.disabled = false;
+                startButton.innerHTML = '<i class="fas fa-microphone"></i> Start Recording';
+            };
+
+            // Function to detect noise level
+            function detectNoiseLevel() {
+                const analyser = createAnalyser();
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Float32Array(bufferLength);
+                analyser.getFloatFrequencyData(dataArray);
+
+                let noiseLevel = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    noiseLevel += Math.abs(dataArray[i]);
+                }
+                noiseLevel /= bufferLength;
+
+                if (noiseLevel < noiseThreshold) {
+                    timeoutID = setTimeout(() => {
+                        recognition.stop();
+                    }, silenceTimeout);
+                } else {
+                    timeoutID = setTimeout(detectNoiseLevel, 1000);
+                }
+            }
+
+            // Function to create AnalyserNode
+            function createAnalyser() {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioCtx.createAnalyser();
+                const stream = recognition.stream;
+                const audioSource = audioCtx.createMediaStreamSource(stream);
+                audioSource.connect(analyser);
+                return analyser;
+            }
+        } else {
+            // Speech Recognition API not supported
+            output.textContent = 'Speech recognition is not supported in this browser.';
+            startButton.disabled = true;
+        }
+    </script>
+</body>
+</html>
